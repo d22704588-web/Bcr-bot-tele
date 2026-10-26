@@ -46,7 +46,7 @@ GIF_2_CHO_LENH = "CgACAgUAAxkBAANvat8dTA2D3ywvFv5WxCpZDXR0_kQAAnwpAAKyGElWlZ98ds
 GIF_3_CHOT_LAI = "CgACAgUAAxkBAANxat8dUNqmcTp81-Zh310m6zRYAbMAAmQiAAINmwlX9emEg5t-DCk9BA"  
 GIF_4_CHOT_LO  = "CgACAgUAAxkBAANzat8dVEVTP8Bhs4XfBFugoWQUr3QAAgofAAJGrslXZjvL-_oDlx09BA"  
 
-# ẢNH BẢNG THỐNG KÊ (ĐÃ CẬP NHẬT TỪ JSON)
+# ẢNH BẢNG THỐNG KÊ CHUẨN
 IMG_BANG_VON   = "AgACAgUAAxkBAAEDIDpq33NAjPQknBBrpTonEqplNye4xgACghtrG5Dj-VbVfOqr3VnICAEAAwIAA3kAAz0E"
 
 bot = telebot.TeleBot(BOT_TOKEN)
@@ -405,16 +405,14 @@ def chay_ca_danh(ca_time):
         
         predicted_side = du_doan_thuat_toan(ket_qua_hien_tai)
         
+        # PHÂN BIỆT RÕ CON VÀ CÁI (CON DÙNG TÍCH XANH + 🔵, CÁI DÙNG TÍCH ĐỎ + 🔴)
         if predicted_side == 'P':
-            ten_side = "CON"
-            tick_id = "5350722806281676158" 
+            msg_lenh = f"✅ 🔵 **CON {ty_le}%**"
         else:
-            ten_side = "CÁI"
-            tick_id = "5352825278672412291" 
+            msg_lenh = f"☑️ 🔴 **CÁI {ty_le}%**"
             
-        msg_lenh = f'<tg-emoji emoji-id="{tick_id}">✅</tg-emoji> <b>{ten_side} {ty_le}%</b> <tg-emoji emoji-id="6091591320378283375">👍</tg-emoji><tg-emoji emoji-id="6091232604709721450">😃</tg-emoji>'
         for group_id in list(allowed_groups):
-            safe_send(group_id, bot.send_message, msg_lenh, parse_mode="HTML")
+            safe_send(group_id, bot.send_message, msg_lenh, parse_mode="Markdown")
 
         ket_qua_moi = wait_for_new_result(ban, so_van_cu, 50)
         if bot_state["force_stop"]: break
@@ -437,7 +435,6 @@ def chay_ca_danh(ca_time):
         so_van_cu = len(ket_qua_moi)
         ket_qua_hien_tai = ket_qua_moi 
 
-        # ĐỊNH DẠNG CỘNG DỒN TỔNG TRỰC TIẾP
         if actual_result == 'T':
             str_tong_lai = f"+{tong_lai}" if tong_lai > 0 else f"{tong_lai}"
             msg_ketqua = f"⚖️ **HÒA {str_tong_lai}%**"
@@ -475,12 +472,10 @@ def goto_chot_ca(tong_lai, ca_time, muc_tieu_lai, muc_tieu_lo):
         
         time.sleep(2)
         
-        # CHÈN ẢNH BẢNG THỐNG KÊ KHI CHỐT CA
+        # GỬI ĐÚNG ẢNH THỐNG KÊ KÈM BẢNG LÃI NGÀY
         board_msg = create_board_msg()
-        if IMG_BANG_VON:
-            if safe_send(group_id, bot.send_photo, IMG_BANG_VON, caption=board_msg, parse_mode="Markdown") is None:
-                safe_send(group_id, bot.send_message, board_msg, parse_mode="Markdown")
-        else:
+        res = safe_send(group_id, bot.send_photo, IMG_BANG_VON, caption=board_msg, parse_mode="Markdown")
+        if res is None:
             safe_send(group_id, bot.send_message, board_msg, parse_mode="Markdown")
     
     bot_state["is_running"] = False
@@ -503,6 +498,5 @@ if __name__ == "__main__":
     threading.Thread(target=self_ping, daemon=True).start()
     threading.Thread(target=ai_continuous_learning, daemon=True).start()
     threading.Thread(target=run_scheduler, daemon=True).start()
-    print("✅ Hệ thống BOT Đã Gắn ẢNH THỐNG KÊ và Cộng Dồn Siêu Gọn!")
-    bot.infinity_polling()    
-  
+    print("✅ Hệ thống BOT Đã Hoàn Thiện Giao Diện & Gửi Ảnh Thống Kê Chuẩn Xác!")
+    bot.infinity_polling()

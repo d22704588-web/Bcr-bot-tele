@@ -10,12 +10,19 @@ import os
 from datetime import datetime, timedelta
 from flask import Flask
 
+# ================= ĐỒNG BỘ MÚI GIỜ VIỆT NAM =================
+os.environ['TZ'] = 'Asia/Ho_Chi_Minh'
+try:
+    time.tzset()
+except AttributeError:
+    pass
+
 # ================= 0. MINI WEB SERVER =================
 app = Flask('')
 
 @app.route('/')
 def home():
-    return "Bot Baccarat Auto Signal is Running!"
+    return "Bot Baccarat Auto Signal is Running 24/7!"
 
 def run_web():
     port = int(os.environ.get("PORT", 10000))
@@ -38,7 +45,9 @@ GIF_1_VAO_SANH = "CgACAgUAAxkBAANtat8dQcSf69J-PhDApL6M2WQytZAAArkeAAJecAhVocMq_4
 GIF_2_CHO_LENH = "CgACAgUAAxkBAANvat8dTA2D3ywvFv5WxCpZDXR0_kQAAnwpAAKyGElWlZ98dsadPrM9BA"  
 GIF_3_CHOT_LAI = "CgACAgUAAxkBAANxat8dUNqmcTp81-Zh310m6zRYAbMAAmQiAAINmwlX9emEg5t-DCk9BA"  
 GIF_4_CHOT_LO  = "CgACAgUAAxkBAANzat8dVEVTP8Bhs4XfBFugoWQUr3QAAgofAAJGrslXZjvL-_oDlx09BA"  
-IMG_BANG_VON   = ""
+
+# ẢNH BẢNG THỐNG KÊ (ĐÃ CẬP NHẬT TỪ JSON)
+IMG_BANG_VON   = "AgACAgUAAxkBAAEDIDpq33NAjPQknBBrpTonEqplNye4xgACghtrG5Dj-VbVfOqr3VnICAEAAwIAA3kAAz0E"
 
 bot = telebot.TeleBot(BOT_TOKEN)
 DB_FILE = "baccarat_bot.db"
@@ -132,7 +141,7 @@ def get_daily_report():
     total = 0
     for shift, res_str in rows:
         shifts[shift] = res_str
-        try: total += float(res_str.replace("+", "").replace("M", ""))
+        try: total += float(res_str.replace("+", "").replace("%", ""))
         except: pass
     return {"date": today_str, "shifts": shifts, "total": total}
 
@@ -154,7 +163,7 @@ def create_board_msg():
         hour_str = ca.split(":")[0] + "H" 
         if ca in report["shifts"]: msg += f"💸 {hour_str} CA {i} : {report['shifts'][ca]}\n"
         else: msg += f"💸 {hour_str} CA {i} : \n"
-    msg += f"\n➡️ **TỔNG LÃI : [ {report['total']}M ]** 💲\n\n📞 **THÔNG TIN LIÊN HỆ: {LIEN_HE}**"
+    msg += f"\n➡️ **TỔNG LÃI : [ {report['total']}% ]** 💲\n\n📞 **THÔNG TIN LIÊN HỆ: {LIEN_HE}**"
     return msg
 
 # ================= 3. GỬI LỆNH AN TOÀN =================
@@ -269,9 +278,9 @@ def show_menu(message):
         "👑 **TRUNG TÂM ĐIỀU KHIỂN AUTO SIGNAL** 👑\n\n"
         f"⚡️ Trạng thái Bot: **{trang_thai}**\n"
         f"📊 **MỤC TIÊU GIAO DỊCH:**\n"
-        f"┣ 🎯 **Chốt Lãi:** `+{bot_settings['MUC_TIEU_LAI']}M`\n"
-        f"┣ 🛑 **Chốt Lỗ:** `{bot_settings['MUC_TIEU_LO']}M`\n"
-        f"┗ 💰 **Vào Lệnh:** `{bot_settings['TY_LE_VAO']}M` / tay\n\n"
+        f"┣ 🎯 **Chốt Lãi:** `+{bot_settings['MUC_TIEU_LAI']}%`\n"
+        f"┣ 🛑 **Chốt Lỗ:** `{bot_settings['MUC_TIEU_LO']}%`\n"
+        f"┗ 💰 **Vào Lệnh:** `{bot_settings['TY_LE_VAO']}%` / tay\n\n"
         f"🗓 **LỊCH LÊN CA TỰ ĐỘNG:**\n"
         f"┣ ⏱ **Số ca hiện tại:** {so_ca} ca\n"
         f"┗ ⏰ **Khung giờ:** {gio_ca}\n"
@@ -289,13 +298,13 @@ def handle_query(call):
     if call.from_user.id != ADMIN_ID: return
     chat_id = call.message.chat.id
     if call.data == "btn_lai":
-        msg = bot.send_message(chat_id, "👉 Gõ số M chốt **LÃI** (VD: 15):", reply_markup=ForceReply())
+        msg = bot.send_message(chat_id, "👉 Gõ số % chốt **LÃI** (VD: 15):", reply_markup=ForceReply())
         bot.register_next_step_handler(msg, step_set_val, 'MUC_TIEU_LAI')
     elif call.data == "btn_lo":
-        msg = bot.send_message(chat_id, "👉 Gõ số M chốt **LỖ** (VD: 10):", reply_markup=ForceReply())
+        msg = bot.send_message(chat_id, "👉 Gõ số % chốt **LỖ** (VD: 10):", reply_markup=ForceReply())
         bot.register_next_step_handler(msg, step_set_val, 'MUC_TIEU_LO')
     elif call.data == "btn_von":
-        msg = bot.send_message(chat_id, "👉 Gõ số M đi **MỖI LỆNH** (VD: 5):", reply_markup=ForceReply())
+        msg = bot.send_message(chat_id, "👉 Gõ số % đi **MỖI LỆNH** (VD: 5):", reply_markup=ForceReply())
         bot.register_next_step_handler(msg, step_set_val, 'TY_LE_VAO')
     elif call.data == "btn_ca":
         msg = bot.send_message(chat_id, "👉 **CÀI ĐẶT CA NHANH 1 DÒNG**\nVD: `12:00 22:00 60`", parse_mode="Markdown", reply_markup=ForceReply())
@@ -396,15 +405,14 @@ def chay_ca_danh(ca_time):
         
         predicted_side = du_doan_thuat_toan(ket_qua_hien_tai)
         
-        # LOGIC PHÂN CHIA TICK ĐỎ / TICK XANH
         if predicted_side == 'P':
             ten_side = "CON"
-            tick_id = "5350722806281676158" # Tick Xanh
+            tick_id = "5350722806281676158" 
         else:
             ten_side = "CÁI"
-            tick_id = "5352825278672412291" # Tick Đỏ
+            tick_id = "5352825278672412291" 
             
-        msg_lenh = f'<tg-emoji emoji-id="{tick_id}">✅</tg-emoji> <b>{ten_side} {ty_le}M</b> <tg-emoji emoji-id="6091591320378283375">👍</tg-emoji><tg-emoji emoji-id="6091232604709721450">😃</tg-emoji>'
+        msg_lenh = f'<tg-emoji emoji-id="{tick_id}">✅</tg-emoji> <b>{ten_side} {ty_le}%</b> <tg-emoji emoji-id="6091591320378283375">👍</tg-emoji><tg-emoji emoji-id="6091232604709721450">😃</tg-emoji>'
         for group_id in list(allowed_groups):
             safe_send(group_id, bot.send_message, msg_lenh, parse_mode="HTML")
 
@@ -429,14 +437,18 @@ def chay_ca_danh(ca_time):
         so_van_cu = len(ket_qua_moi)
         ket_qua_hien_tai = ket_qua_moi 
 
+        # ĐỊNH DẠNG CỘNG DỒN TỔNG TRỰC TIẾP
         if actual_result == 'T':
-            msg_ketqua = "HÒA 0M"
+            str_tong_lai = f"+{tong_lai}" if tong_lai > 0 else f"{tong_lai}"
+            msg_ketqua = f"⚖️ **HÒA {str_tong_lai}%**"
         elif actual_result == predicted_side:
             tong_lai += ty_le
-            msg_ketqua = f"**H+{ty_le}M**"
+            str_tong_lai = f"+{tong_lai}" if tong_lai > 0 else f"{tong_lai}"
+            msg_ketqua = f"✅ **H{str_tong_lai}%**"
         else:
             tong_lai -= ty_le
-            msg_ketqua = f"**G-{ty_le}M**"
+            str_tong_lai = f"+{tong_lai}" if tong_lai > 0 else f"{tong_lai}"
+            msg_ketqua = f"❌ **G{str_tong_lai}%**"
         
         for group_id in list(allowed_groups):
             safe_send(group_id, bot.send_message, msg_ketqua, parse_mode="Markdown")
@@ -450,7 +462,7 @@ def goto_chot_ca(tong_lai, ca_time, muc_tieu_lai, muc_tieu_lo):
             safe_send(group_id, bot.send_message, "⚠️ **CA ĐÁNH BỊ DỪNG ĐỘT XUẤT!** Đang tiến hành chốt ca...", parse_mode="Markdown")
         time.sleep(2)
 
-    str_tong_lai = f"+{tong_lai}M" if tong_lai > 0 else f"{tong_lai}M"
+    str_tong_lai = f"+{tong_lai}%" if tong_lai > 0 else f"{tong_lai}%"
     if ca_time != "TEST": save_shift_result(ca_time, str_tong_lai)
 
     for group_id in list(allowed_groups):
@@ -462,6 +474,8 @@ def goto_chot_ca(tong_lai, ca_time, muc_tieu_lai, muc_tieu_lo):
             safe_send(group_id, bot.send_message, f"⚖️ **HÒA {str_tong_lai}**\nCa sau làm lại!", parse_mode="Markdown")
         
         time.sleep(2)
+        
+        # CHÈN ẢNH BẢNG THỐNG KÊ KHI CHỐT CA
         board_msg = create_board_msg()
         if IMG_BANG_VON:
             if safe_send(group_id, bot.send_photo, IMG_BANG_VON, caption=board_msg, parse_mode="Markdown") is None:
@@ -489,5 +503,6 @@ if __name__ == "__main__":
     threading.Thread(target=self_ping, daemon=True).start()
     threading.Thread(target=ai_continuous_learning, daemon=True).start()
     threading.Thread(target=run_scheduler, daemon=True).start()
-    print("✅ Hệ thống BOT Đã Cập Nhật EMOJI TICK ĐỎ VÀ XANH!")
-    bot.infinity_polling()
+    print("✅ Hệ thống BOT Đã Gắn ẢNH THỐNG KÊ và Cộng Dồn Siêu Gọn!")
+    bot.infinity_polling()    
+  

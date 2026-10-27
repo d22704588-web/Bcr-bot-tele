@@ -46,8 +46,8 @@ GIF_2_CHO_LENH = "CgACAgUAAxkBAANvat8dTA2D3ywvFv5WxCpZDXR0_kQAAnwpAAKyGElWlZ98ds
 GIF_3_CHOT_LAI = "CgACAgUAAxkBAANxat8dUNqmcTp81-Zh310m6zRYAbMAAmQiAAINmwlX9emEg5t-DCk9BA"  
 GIF_4_CHOT_LO  = "CgACAgUAAxkBAANzat8dVEVTP8Bhs4XfBFugoWQUr3QAAgofAAJGrslXZjvL-_oDlx09BA"  
 
-# ẢNH BẢNG THỐNG KÊ CHUẨN
-IMG_BANG_VON   = "AgACAgUAAxkBAAEDIDpq33NAjPQknBBrpTonEqplNye4xgACghtrG5Dj-VbVfOqr3VnICAEAAwIAA3kAAz0E"
+# CHỈNH LẠI ĐUÔI ẢNH THÀNH .png THEO FILE CỦA BẠN
+IMG_BANG_VON = "bang_thong_ke.png"
 
 bot = telebot.TeleBot(BOT_TOKEN)
 DB_FILE = "baccarat_bot.db"
@@ -131,7 +131,8 @@ def remove_group_db(chat_id):
 allowed_groups = load_groups()
 
 def get_daily_report():
-    today_str = datetime.now().strftime("%d-%m-%Y")
+    now = datetime.utcnow() + timedelta(hours=7)
+    today_str = now.strftime("%d-%m-%Y")
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("SELECT shift, result FROM daily_reports WHERE date = ?", (today_str,))
@@ -146,7 +147,8 @@ def get_daily_report():
     return {"date": today_str, "shifts": shifts, "total": total}
 
 def save_shift_result(shift, result_str):
-    today_str = datetime.now().strftime("%d-%m-%Y")
+    now = datetime.utcnow() + timedelta(hours=7)
+    today_str = now.strftime("%d-%m-%Y")
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("INSERT OR REPLACE INTO daily_reports (date, shift, result) VALUES (?, ?, ?)", (today_str, shift, result_str))
@@ -156,14 +158,14 @@ def save_shift_result(shift, result_str):
 def create_board_msg():
     report = get_daily_report()
     date_str = report["date"].replace("-", " ➖ ") 
-    msg = "🎴 **BẢNG LÃI CA GIAO DỊCH TRONG NGÀY CHO ANH EM NHA** 🎴\n\n"
+    msg = "🚨 **BẢNG LÃI CA GIAO DỊCH TRONG NGÀY CHO ANH EM NHA** 🚨\n\n"
     msg += f"🗓 **{date_str}**\n"
     ca_list = bot_settings['CA_HOAT_DONG']
     for i, ca in enumerate(ca_list, 1):
         hour_str = ca.split(":")[0] + "H" 
         if ca in report["shifts"]: msg += f"💸 {hour_str} CA {i} : {report['shifts'][ca]}\n"
         else: msg += f"💸 {hour_str} CA {i} : \n"
-    msg += f"\n➡️ **TỔNG LÃI : [ {report['total']}% ]** 💲\n\n📞 **THÔNG TIN LIÊN HỆ: {LIEN_HE}**"
+    msg += f"\n➡️ **TỔNG LÃI : {report['total']}%** 💲\n\n📞 **THÔNG TIN LIÊN HỆ:**\n{LIEN_HE}"
     return msg
 
 # ================= 3. GỬI LỆNH AN TOÀN =================
@@ -177,7 +179,8 @@ def safe_send(group_id, send_func, *args, **kwargs):
                 allowed_groups.remove(group_id)
                 remove_group_db(group_id)
         return None
-    except Exception: return None
+    except Exception as e: 
+        return None
 
 def gui_anh_hoac_video(group_id, file_id, caption):
     if not file_id: 
@@ -274,9 +277,13 @@ def show_menu(message):
     so_ca = len(bot_settings['CA_HOAT_DONG'])
     gio_ca = ", ".join(bot_settings['CA_HOAT_DONG'])
     trang_thai = "🟢 ĐANG CHẠY" if bot_state["is_running"] else "💤 ĐANG NGHỈ"
+    
+    server_time = (datetime.utcnow() + timedelta(hours=7)).strftime("%H:%M:%S")
+    
     text = (
         "👑 **TRUNG TÂM ĐIỀU KHIỂN AUTO SIGNAL** 👑\n\n"
         f"⚡️ Trạng thái Bot: **{trang_thai}**\n"
+        f"🕒 Giờ Server: `{server_time}`\n"
         f"📊 **MỤC TIÊU GIAO DỊCH:**\n"
         f"┣ 🎯 **Chốt Lãi:** `+{bot_settings['MUC_TIEU_LAI']}%`\n"
         f"┣ 🛑 **Chốt Lỗ:** `{bot_settings['MUC_TIEU_LO']}%`\n"
@@ -290,7 +297,8 @@ def show_menu(message):
     markup = InlineKeyboardMarkup()
     markup.row(InlineKeyboardButton("🎯 Sửa Chốt Lãi", callback_data="btn_lai"), InlineKeyboardButton("🛑 Sửa Chốt Lỗ", callback_data="btn_lo"))
     markup.row(InlineKeyboardButton("💰 Sửa Vốn Lệnh", callback_data="btn_von"), InlineKeyboardButton("⏰ Cài Lịch Ca", callback_data="btn_ca"))
-    markup.row(InlineKeyboardButton("▶️ CHẠY THẬT", callback_data="btn_test"), InlineKeyboardButton("🛑 DỪNG BOT", callback_data="btn_stop"))
+    markup.row(InlineKeyboardButton("▶️ CHẠY THẬT", callback_data="btn_test"), InlineKeyboardButton("🔄 RESET LỖI KẸT", callback_data="btn_reset"))
+    markup.row(InlineKeyboardButton("🛑 DỪNG BOT KHI ĐANG CA", callback_data="btn_stop"))
     bot.send_message(message.chat.id, text, reply_markup=markup, parse_mode="Markdown")
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -311,10 +319,15 @@ def handle_query(call):
         bot.register_next_step_handler(msg, step_ca_all_in_one)
     elif call.data == "btn_test":
         if not allowed_groups: bot.send_message(chat_id, "⚠️ Chưa có nhóm. Gõ `/setgroup`.")
-        elif bot_state["is_running"]: bot.send_message(chat_id, "⚠️ Bot đang chạy ca rồi!")
+        elif bot_state["is_running"]: bot.send_message(chat_id, "⚠️ Bot đang chạy ca rồi! Bấm Reset nếu bị kẹt.")
         else: threading.Thread(target=chay_ca_danh, args=("TEST",)).start()
     elif call.data == "btn_stop":
         cmd_dungbot(call.message)
+    elif call.data == "btn_reset":
+        bot_state["is_running"] = False
+        bot_state["force_stop"] = False
+        bot.send_message(chat_id, "✅ Đã Reset trạng thái thành công. Chờ ca tiếp theo hoặc chạy test lại!")
+        show_menu(call.message)
 
 def step_set_val(message, key):
     try:
@@ -405,7 +418,6 @@ def chay_ca_danh(ca_time):
         
         predicted_side = du_doan_thuat_toan(ket_qua_hien_tai)
         
-        # PHÂN BIỆT RÕ CON VÀ CÁI (CON DÙNG TÍCH XANH + 🔵, CÁI DÙNG TÍCH ĐỎ + 🔴)
         if predicted_side == 'P':
             msg_lenh = f"✅ 🔵 **CON {ty_le}%**"
         else:
@@ -441,7 +453,7 @@ def chay_ca_danh(ca_time):
         elif actual_result == predicted_side:
             tong_lai += ty_le
             str_tong_lai = f"+{tong_lai}" if tong_lai > 0 else f"{tong_lai}"
-            msg_ketqua = f"✅ **H{str_tong_lai}%**"
+            msg_ketqua = f"💰 **H{str_tong_lai}%**"
         else:
             tong_lai -= ty_le
             str_tong_lai = f"+{tong_lai}" if tong_lai > 0 else f"{tong_lai}"
@@ -472,31 +484,36 @@ def goto_chot_ca(tong_lai, ca_time, muc_tieu_lai, muc_tieu_lo):
         
         time.sleep(2)
         
-        # GỬI ĐÚNG ẢNH THỐNG KÊ KÈM BẢNG LÃI NGÀY
         board_msg = create_board_msg()
-        res = safe_send(group_id, bot.send_photo, IMG_BANG_VON, caption=board_msg, parse_mode="Markdown")
-        if res is None:
+        try:
+            with open(IMG_BANG_VON, 'rb') as photo:
+                safe_send(group_id, bot.send_photo, photo, caption=board_msg, parse_mode="Markdown")
+        except Exception:
             safe_send(group_id, bot.send_message, board_msg, parse_mode="Markdown")
     
     bot_state["is_running"] = False
     bot_state["force_stop"] = False
 
 # ================= 7. KHỞI CHẠY =================
-def reload_schedule():
-    schedule.clear()
-    for ca_time in bot_settings['CA_HOAT_DONG']:
-        schedule.every().day.at(ca_time).do(lambda t=ca_time: threading.Thread(target=chay_ca_danh, args=(t,)).start())
+def get_current_time_str():
+    now = datetime.utcnow() + timedelta(hours=7)
+    return now.strftime("%H:%M")
 
 def run_scheduler():
     reload_schedule()
     while True:
-        schedule.run_pending()
-        time.sleep(1)
+        current_time = get_current_time_str()
+        if not bot_state["is_running"]:
+            for ca_time in bot_settings['CA_HOAT_DONG']:
+                if ca_time == current_time:
+                    threading.Thread(target=chay_ca_danh, args=(ca_time,)).start()
+                    time.sleep(60) 
+        time.sleep(5)
 
 if __name__ == "__main__":
     threading.Thread(target=run_web, daemon=True).start()
     threading.Thread(target=self_ping, daemon=True).start()
     threading.Thread(target=ai_continuous_learning, daemon=True).start()
     threading.Thread(target=run_scheduler, daemon=True).start()
-    print("✅ Hệ thống BOT Đã Hoàn Thiện Giao Diện & Gửi Ảnh Thống Kê Chuẩn Xác!")
+    print("✅ Đã cập nhật ảnh PNG!")
     bot.infinity_polling()

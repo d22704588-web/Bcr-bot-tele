@@ -486,7 +486,52 @@ def chay_ca_danh(ca_time):
         safe_send(group_id, bot.send_message, f"🎰 **BÁO BÀN MỚI:** Chọn bàn chuẩn **{ban}**", parse_mode="Markdown")
         gui_anh_hoac_video(group_id, GIF_2_CHO_LENH, f"⏳ **SẴN SÀNG TAY SAU VÀO LỆNH (Bàn {ban})**")
 
-    data_ban_moi = fetch_api(ban)
+    data_ban = fetch_api(ban)
+    if not data_ban: return goto_chot_ca(tong_lai, ca_time, muc_tieu_lai, muc_tieu_lo)
+    so_van_cu = len(data_ban.get('results', []))
+
+    ket_qua_hien_tai = wait_for_new_result(ban, so_van_cu, 50)
+    if ket_qua_hien_tai: so_van_cu = len(ket_qua_hien_tai)
+    else: ket_qua_hien_tai = data_ban.get('results', [])
+
+    while muc_tieu_lo < tong_lai < muc_tieu_lai and not bot_state["force_stop"]:
+        predicted_side = du_doan_thuat_toan(ket_qua_hien_tai)
+        
+        cau_dep = False
+        if ban in ai_memory:
+            mem = ai_memory[ban]
+            total_played = mem["wins"] + mem["losses"]
+            if total_played >= 3 and (mem["wins"] / total_played) >= 0.6:
+                cau_dep = True
+                
+        if cau_dep:
+            ty_le_hien_tai = ty_le_goc * 2 
+        else:
+            ty_le_hien_tai = ty_le_goc
+        
+        if predicted_side == 'P':
+            msg_lenh = f"👉 🔵 **CON {ty_le_hien_tai}%**"
+        else:
+            msg_lenh = f"👉 🔴 **CÁI {ty_le_hien_tai}%**"
+            
+        if cau_dep:
+            msg_lenh += " 🔥" 
+            
+        for group_id in list(allowed_groups):
+            safe_send(group_id, bot.send_message, msg_lenh, parse_mode="Markdown")
+
+        ket_qua_moi = wait_for_new_result(ban, so_van_cu, 50)
+        if bot_state["force_stop"]: break
+
+        if not ket_qua_moi:
+            for group_id in list(allowed_groups):
+                safe_send(group_id, bot.send_message, f"🔄 **Hết bài đổi bàn...** Bàn {ban} đang xáo bài, hệ thống chuyển bàn mới!", parse_mode="Markdown")
+            ban = chon_ban_thong_minh()
+            for group_id in list(allowed_groups):
+                safe_send(group_id, bot.send_message, f"🎰 **BÁO BÀN MỚI:** Chuyển sang bàn chuẩn **{ban}**", parse_mode="Markdown")
+                gui_anh_hoac_video(group_id, GIF_2_CHO_LENH, f"⏳ **SẴN SÀNG TAY SAU VÀO LỆNH (Bàn {ban})**")
+            
+            data_ban_moi = fetch_api(ban)
             so_van_cu = len(data_ban_moi.get('results', [])) if data_ban_moi else 0
             ket_qua_hien_tai = wait_for_new_result(ban, so_van_cu, 50)
             if ket_qua_hien_tai: so_van_cu = len(ket_qua_hien_tai)

@@ -21,7 +21,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "Bot Baccarat Auto Signal is Running 24/7!"
+    return "Bot Baccarat Auto Signal (Multi-AI Engine v5) is Running 24/7!"
 
 def run_web():
     port = int(os.environ.get("PORT", 10000))
@@ -212,7 +212,7 @@ def gui_media_local_co_caption(group_id, file_path, caption):
     except Exception:
         return False
 
-# ================= 4. THUẬT TOÁN =================
+# ================= 4. HỆ THỐNG ĐA THUẬT TOÁN AI (MULTI-STRATEGY ENGINE V5) =================
 def fetch_api(table_id=""):
     url = f"https://api-bcrsexy.onrender.com/api/baccarat/{table_id}" if table_id else "https://api-bcrsexy.onrender.com/api/baccarat"
     try:
@@ -221,11 +221,158 @@ def fetch_api(table_id=""):
     except: pass
     return None
 
+def opp(side):
+    return 'P' if side == 'B' else 'B'
+
+def strat_pattern_matcher(clean):
+    """Chiến thuật 1: So khớp chuỗi lịch sử (Markov Pattern Matching) ngay trong bàn hiện tại"""
+    n = len(clean)
+    if n < 6: return clean[-1] if n > 0 else 'B'
+    # Quét mẫu từ độ dài 4 xuống 2 trong lịch sử bàn để xem sau chuỗi này bàn hay ra gì nhất
+    for length in (4, 3, 2):
+        if n > length + 1:
+            pattern = clean[-length:]
+            counts = {'B': 0, 'P': 0}
+            for i in range(n - length - 1):
+                if clean[i:i+length] == pattern:
+                    next_val = clean[i+length]
+                    if next_val in counts:
+                        counts[next_val] += 1
+            if counts['B'] > counts['P']: return 'B'
+            if counts['P'] > counts['B']: return 'P'
+    return clean[-1]
+
+def strat_classic_road(clean):
+    """Chiến thuật 2: Bắt nhịp cầu chuẩn (Bệt, 1-1, 2-2, 2-1-2)"""
+    n = len(clean)
+    if n < 3: return 'B'
+    if n >= 4:
+        last4 = clean[-4:]
+        # Cầu 2-2: BBPP -> B, PPBB -> P
+        if last4 == ['B', 'B', 'P', 'P']: return 'B'
+        if last4 == ['P', 'P', 'B', 'B']: return 'P'
+        # Cầu 1-2-1 hoặc 2-1-2: B P P B -> P
+        if last4 == ['B', 'P', 'P', 'B']: return 'P'
+        if last4 == ['P', 'B', 'B', 'P']: return 'B'
+    last3 = clean[-3:]
+    # Bệt 3 -> Đánh tiếp bệt
+    if last3[0] == last3[1] == last3[2]: return last3[-1]
+    # 1-1 (B P B -> P)
+    if last3[0] != last3[1] and last3[1] != last3[2]: return opp(last3[-1])
+    # B B P -> P (Theo nhịp lên 2-2)
+    if last3[0] == last3[1] and last3[1] != last3[2]: return last3[-1]
+    # B P P -> B (Chặn cầu 1-2 về 1-2-1)
+    return opp(last3[-1])
+
+def strat_trend_follow(clean):
+    """Chiến thuật 3: Thuận xu hướng bàn (Follow Last / Bám Bệt & Cầu Dài)"""
+    if not clean: return 'B'
+    return clean[-1]
+
+def strat_chop_reversal(clean):
+    """Chiến thuật 4: Bẻ cầu / Bắt đảo chiều liên tục (Ping-pong & Chặt Bệt)"""
+    if not clean: return 'B'
+    if len(clean) >= 3 and clean[-1] == clean[-2] != clean[-3]:
+        # Nếu vừa lên nhịp 2 (VD: P B B) thì bẻ về P (cầu 1-2)
+        return opp(clean[-1])
+    return opp(clean[-1])
+
+def get_all_strategy_predictions(results):
+    clean = [r for r in results if r in ('B', 'P')]
+    if len(clean) < 3:
+        default = clean[-1] if clean else 'B'
+        return {'S1': default, 'S2': default, 'S3': default, 'S4': opp(default)}
+    return {
+        'S1': strat_pattern_matcher(clean),
+        'S2': strat_classic_road(clean),
+        'S3': strat_trend_follow(clean),
+        'S4': strat_chop_reversal(clean)
+    }
+
+def evaluate_table_ai(results):
+    """Chấm điểm 4 chiến thuật trên lịch sử bàn (Sliding Window 8 tay gần nhất) để chọn Chiến thuật Vua"""
+    clean = [r for r in results if r in ('B', 'P')]
+    if len(clean) < 4:
+        return 'B', 0.5, 'S2'
+        
+    scores = {'S1': [], 'S2': [], 'S3': [], 'S4': []}
+    start_idx = max(3, len(clean) - 10)
+    for i in range(start_idx, len(clean)):
+        sub = clean[:i]
+        actual = clean[i]
+        preds = get_all_strategy_predictions(sub)
+        for k, p in preds.items():
+            scores[k].append(1 if p == actual else 0)
+            
+    best_strat = 'S1'
+    best_wr = -1.0
+    for k in ('S1', 'S2', 'S3', 'S4'):
+        recent = scores[k][-6:] # Lấy 6 tay sát nhất để nhạy bén với việc đổi cầu
+        wr = (sum(recent) / len(recent)) if recent else 0.5
+        if wr > best_wr:
+            best_wr = wr
+            best_strat = k
+            
+    current_preds = get_all_strategy_predictions(clean)
+    best_pred = current_preds[best_strat]
+    
+    # ĐÁNH GIÁ ĐỘ KẾT (CONFIDENCE) ĐỂ QUYẾT ĐỊNH VÀO 10%:
+    # Nếu chiến thuật đang có chuỗi thông >= 3 tay liên tiếp hoặc đồng thuận cao
+    recent_best = scores[best_strat][-6:]
+    consecutive_wins = 0
+    for x in reversed(recent_best):
+        if x == 1: consecutive_wins += 1
+        else: break
+        
+    # Đếm số chiến thuật có Winrate >= 60% cùng chỉ về 1 cửa
+    agree_count = 0
+    for k in ('S1', 'S2', 'S3', 'S4'):
+        r_k = scores[k][-6:]
+        wr_k = (sum(r_k) / len(r_k)) if r_k else 0
+        if wr_k >= 0.6 and current_preds[k] == best_pred:
+            agree_count += 1
+            
+    confidence = best_wr
+    if consecutive_wins >= 3 or agree_count >= 2:
+        confidence = max(confidence, 0.78)
+        
+    return best_pred, confidence, best_strat
+
 def du_doan_thuat_toan(results):
-    if not results or len(results) < 3: return 'B'
-    last_3 = results[-3:]
-    if last_3[0] == last_3[1] == last_3[2]: return last_3[-1] 
-    else: return 'P' if last_3[-1] == 'B' else 'B' 
+    pred, _, _ = evaluate_table_ai(results)
+    return pred
+
+def kiem_tra_cau_dep_thuc_te(results, ban, win_streak, lose_streak, tong_lai):
+    """Logic Quản Lý Vốn Thông Minh: Kết hợp Độ tự tin AI + Nhịp Cầu + Bù Lỗ Linh Hoạt"""
+    clean = [r for r in results if r in ('B', 'P')]
+    _, confidence, _ = evaluate_table_ai(clean)
+    
+    # Kiểm tra thế bài chuẩn mực (Bệt >= 4, 1-1 >= 4, 2-2 chuẩn)
+    pattern_strong = False
+    if len(clean) >= 4:
+        l4 = clean[-4:]
+        if l4[0] == l4[1] == l4[2] == l4[3]: pattern_strong = True
+        elif l4[0] != l4[1] and l4[1] != l4[2] and l4[2] != l4[3]: pattern_strong = True
+        elif l4 in (['B', 'B', 'P', 'P'], ['P', 'P', 'B', 'B']): pattern_strong = True
+
+    # TH1: Tay Siêu Chắc Chắn (AI tự tin >= 75% hoặc vừa hợp bài chuẩn vừa đúng nhịp AI >= 66%) -> Đánh 10% ngay!
+    if confidence >= 0.75 or (confidence >= 0.65 and pattern_strong):
+        return True
+        
+    # TH2: Sau khi vừa thua 1 tay (lose_streak == 1, ví dụ đang G-5% hoặc sụt lãi)
+    # Nếu cầu đang thuận (confidence >= 60% hoặc pattern_strong) -> Gấp thếp 10% để 1 tay vừa gỡ lỗ vừa lãi +5% luôn!
+    if lose_streak == 1 and (confidence >= 0.60 or pattern_strong):
+        return True
+        
+    # TH3: Thừa thắng xông lên (Vừa ăn tay trước win_streak >= 1 và cầu vẫn giữ nhịp >= 60%) -> Bứt tốc 10% chốt ca nhanh!
+    if win_streak >= 1 and (confidence >= 0.60 or pattern_strong):
+        return True
+        
+    # TH4: Đang âm vốn (tong_lai < 0) ở tay đầu của bàn mới rất đẹp (confidence >= 65%) -> Đánh 10% kéo về bờ nhanh
+    if tong_lai < 0 and lose_streak == 0 and confidence >= 0.65:
+        return True
+        
+    return False
 
 def ai_continuous_learning():
     global ai_memory
@@ -236,59 +383,68 @@ def ai_continuous_learning():
         
         for tid, info in data.items():
             results = info.get("results", "")
-            if len(results) < 5: continue
+            clean = [r for r in results if r in ('B', 'P')]
+            if len(clean) < 5: continue
             
-            if tid not in ai_memory:
-                ai_memory[tid] = {"last_len": len(results), "predicted": None, "wins": 0, "losses": 0}
-                for i in range(3, len(results) - 1):
-                    lich_su_cat_lat = results[:i]
-                    kq_thuc_te_tay_sau = results[i]
-                    du_doan_nhap = du_doan_thuat_toan(lich_su_cat_lat)
-                    if du_doan_nhap == kq_thuc_te_tay_sau:
-                        ai_memory[tid]["wins"] += 1
-                    elif kq_thuc_te_tay_sau != 'T':
-                        ai_memory[tid]["losses"] += 1
-                ai_memory[tid]["predicted"] = du_doan_thuat_toan(results)
-            else:
-                mem = ai_memory[tid]
-                if len(results) > mem["last_len"]:
-                    actual = results[-1]
-                    if mem["predicted"]:
-                        if actual == mem["predicted"]: mem["wins"] += 1
-                        elif actual != 'T': mem["losses"] += 1
-                    mem["last_len"] = len(results)
-                    mem["predicted"] = du_doan_thuat_toan(results)
+            pred, conf, strat = evaluate_table_ai(clean)
+            ai_memory[tid] = {
+                "last_len": len(results),
+                "clean_len": len(clean),
+                "predicted": pred,
+                "confidence": conf,
+                "best_strat": strat
+            }
                     
         active_tids = data.keys()
-        keys_to_del = [k for k in ai_memory if k not in active_tids]
+        keys_to_del = [k for k in list(ai_memory.keys()) if k not in active_tids]
         for k in keys_to_del: del ai_memory[k]
 
-def chon_ban_thong_minh(exclude_table=None):
+def chon_ban_thong_minh(exclude_tables=None):
+    """Quét toàn bộ sảnh, chấm điểm trực tiếp từng bàn ở thời điểm hiện tại để bốc bàn có tỷ lệ ăn cao nhất"""
+    if exclude_tables is None:
+        exclude_tables = set()
+    elif not isinstance(exclude_tables, (set, list, tuple)):
+        exclude_tables = {str(exclude_tables)}
+    else:
+        exclude_tables = {str(x) for x in exclude_tables}
+
+    data = fetch_api()
     best_table = None
-    max_win_rate = -1
-    for tid, mem in ai_memory.items():
-        if exclude_table and str(tid) == str(exclude_table):
-            continue
-        total_played = mem["wins"] + mem["losses"]
-        if total_played >= 3: 
-            win_rate = (mem["wins"] / total_played) * 100
-            if win_rate > max_win_rate:
-                max_win_rate = win_rate
-                best_table = tid
-    
-    if not best_table: 
-        data = fetch_api()
-        if data:
+    best_score = -1.0
+
+    if data:
+        for tid, info in data.items():
+            if str(tid) in exclude_tables:
+                continue
+            results = info.get("results", "")
+            clean = [r for r in results if r in ('B', 'P')]
+            # Chỉ chọn bàn đã có từ 6 đến 48 ván (đủ dữ liệu soi cầu và không sợ hết bài ngay lập tức)
+            if 6 <= len(clean) <= 48:
+                _, conf, _ = evaluate_table_ai(clean)
+                # Ưu tiên bàn có độ tự tin cao nhất
+                if conf > best_score:
+                    best_score = conf
+                    best_table = tid
+
+        # Nếu tất cả bàn đều ít/nhiều ván hơn khoảng trên, nới lỏng điều kiện
+        if not best_table:
             for tid, info in data.items():
-                if exclude_table and str(tid) == str(exclude_table):
+                if str(tid) in exclude_tables:
                     continue
-                if len(info.get("results", "")) > 3:
-                    best_table = tid; break
-            if not best_table:
-                for tid in data.keys():
-                    if not exclude_table or str(tid) != str(exclude_table):
-                        best_table = tid; break
-    return best_table or exclude_table
+                clean = [r for r in info.get("results", "") if r in ('B', 'P')]
+                if len(clean) >= 3:
+                    _, conf, _ = evaluate_table_ai(clean)
+                    if conf > best_score:
+                        best_score = conf
+                        best_table = tid
+
+        if not best_table:
+            for tid in data.keys():
+                if str(tid) not in exclude_tables:
+                    best_table = tid
+                    break
+
+    return best_table
 
 # ================= 5. MENU & QUẢN LÝ NHÓM =================
 bot.set_my_commands([
@@ -307,13 +463,13 @@ def send_menu(chat_id):
     server_time = now.strftime("%H:%M:%S")
     
     text = (
-        "👑 **TRUNG TÂM ĐIỀU KHIỂN AUTO SIGNAL** 👑\n\n"
+        "👑 **TRUNG TÂM ĐIỀU KHIỂN AUTO SIGNAL (AI V5)** 👑\n\n"
         f"⚡️ Trạng thái Bot: **{trang_thai}**\n"
         f"🕒 Giờ Server: `{server_time}`\n"
         f"📊 **MỤC TIÊU GIAO DỊCH:**\n"
         f"┣ 🎯 **Chốt Lãi:** `+{bot_settings['MUC_TIEU_LAI']}%`\n"
         f"┣ 🛑 **Chốt Lỗ:** `{bot_settings['MUC_TIEU_LO']}%`\n"
-        f"┗ 💰 **Vào Lệnh Mặc Định:** `{bot_settings['TY_LE_VAO']}%` (Chỉ x2 khi winrate cực cao)\n\n"
+        f"┗ 💰 **Quản Lý Vốn:** `{bot_settings['TY_LE_VAO']}%` - `{bot_settings['TY_LE_VAO']*2}%` (Đa Thuật Toán AI)\n\n"
         f"🗓 **LỊCH LÊN CA TỰ ĐỘNG:**\n"
         f"┣ ⏱ **Số ca hiện tại:** {so_ca} ca\n"
         f"┗ ⏰ **Khung giờ:** {gio_ca}\n"
@@ -345,6 +501,9 @@ def handle_query(call):
     elif call.data == "btn_lo":
         msg = bot.send_message(chat_id, "👉 Gõ số % chốt **LỖ** (VD: 10):", reply_markup=ForceReply())
         bot.register_next_step_handler(msg, step_set_val, 'MUC_TIEU_LO')
+    elif call.data == "btn_von":
+        msg = bot.send_message(chat_id, "👉 Gõ số % đi **MỖI LỆNH** (VD: 5):", reply_markup=ForceReply())
+        bot.register_next_step_handler(msg, step_set_val, 'TY_LE_VAO')
     elif call.data == "btn_von":
         msg = bot.send_message(chat_id, "👉 Gõ số % đi **MỖI LỆNH** (VD: 5):", reply_markup=ForceReply())
         bot.register_next_step_handler(msg, step_set_val, 'TY_LE_VAO')
@@ -475,12 +634,16 @@ def chay_ca_danh(ca_time):
     muc_tieu_lai = bot_settings['MUC_TIEU_LAI']
     muc_tieu_lo = bot_settings['MUC_TIEU_LO']
     ty_le_goc = bot_settings['TY_LE_VAO']
+    
+    win_streak = 0
+    lose_streak = 0
+    excluded_tables = set()
 
     for group_id in list(allowed_groups):
         gui_anh_hoac_video(group_id, GIF_1_VAO_SANH, "🔥 **MN ƠI CHUẨN BỊ VÀO SẢNH SEXY ĐỢI LỆNH!**")
     if not smart_sleep(4): return goto_chot_ca(tong_lai, ca_time, muc_tieu_lai, muc_tieu_lo)
 
-    ban = chon_ban_thong_minh()
+    ban = chon_ban_thong_minh(excluded_tables)
     bot_state["selected_table"] = ban
     
     for group_id in list(allowed_groups):
@@ -489,34 +652,37 @@ def chay_ca_danh(ca_time):
 
     data_ban = fetch_api(ban)
     if not data_ban: return goto_chot_ca(tong_lai, ca_time, muc_tieu_lai, muc_tieu_lo)
-    so_van_cu = len(data_ban.get('results', []))
+    so_van_cu = len(data_ban.get('results', ''))
 
     ket_qua_hien_tai = wait_for_new_result(ban, so_van_cu, 50)
     if ket_qua_hien_tai: so_van_cu = len(ket_qua_hien_tai)
-    else: ket_qua_hien_tai = data_ban.get('results', [])
+    else: ket_qua_hien_tai = data_ban.get('results', '')
 
     while muc_tieu_lo < tong_lai < muc_tieu_lai and not bot_state["force_stop"]:
-        predicted_side = du_doan_thuat_toan(ket_qua_hien_tai)
+        # DỰ ĐOÁN BẰNG ĐA THUẬT TOÁN AI TỐI ƯU NHẤT CHO BÀN HIỆN TẠI
+        predicted_side, confidence, _ = evaluate_table_ai(ket_qua_hien_tai)
         
-        # SỬA LẠI: MẶC ĐỊNH LUÔN ĐÁNH 5% (CHỈ X2 KHI WINRATE ĐẠT TỪ 80% TRỞ LÊN VÀ ĐÃ TEST >= 5 VÁN ĐỂ TRÁNH LỖ)
-        cau_dep = False
-        if ban in ai_memory:
-            mem = ai_memory[ban]
-            total_played = mem["wins"] + mem["losses"]
-            if total_played >= 5 and (mem["wins"] / total_played) >= 0.8:
-                cau_dep = True
+        # KIỂM TRA ĐỘ KẾT ĐỂ ĐÁNH 10% (CHỐT LỜI NHANH & GỠ LỖ THÔNG MINH)
+        cau_dep = kiem_tra_cau_dep_thuc_te(ket_qua_hien_tai, ban, win_streak, lose_streak, tong_lai)
                 
         ty_le_hien_tai = (ty_le_goc * 2) if cau_dep else ty_le_goc
+        
+        # Kìm hãm nếu gần chạm mục tiêu lãi (Ví dụ đang +10%, mục tiêu +15% thì chỉ đánh 5%)
         khoang_cach_lai = muc_tieu_lai - tong_lai
         if khoang_cach_lai > 0 and ty_le_hien_tai > khoang_cach_lai:
             ty_le_hien_tai = khoang_cach_lai
+            
+        # Bảo vệ đáy chốt lỗ: Nếu đang gần mức lỗ tối đa (VD đang -10%, mục tiêu lỗ -15%), không đánh lố mức lỗ
+        khoang_cach_lo = tong_lai - muc_tieu_lo
+        if khoang_cach_lo > 0 and ty_le_hien_tai > khoang_cach_lo:
+            ty_le_hien_tai = khoang_cach_lo
         
         if predicted_side == 'P':
             msg_lenh = f"👉 🔵 **CON {ty_le_hien_tai}%**"
         else:
             msg_lenh = f"👉 🔴 **CÁI {ty_le_hien_tai}%**"
             
-        if cau_dep and ty_le_hien_tai > ty_le_goc:
+        if ty_le_hien_tai > ty_le_goc:
             msg_lenh += " 🔥" 
             
         for group_id in list(allowed_groups):
@@ -525,10 +691,14 @@ def chay_ca_danh(ca_time):
         ket_qua_moi = wait_for_new_result(ban, so_van_cu, 50)
         if bot_state["force_stop"]: break
 
-        if not ket_qua_moi:
+        # NẾU HẾT BÀI / XÁO BÀI -> ĐỔI BÀN
+        if not ket_qua_moi or len(ket_qua_moi) < so_van_cu:
             ban_cu = ban
-            ban = chon_ban_thong_minh(exclude_table=ban_cu)
+            excluded_tables.add(str(ban_cu))
+            ban = chon_ban_thong_minh(excluded_tables)
             bot_state["selected_table"] = ban
+            win_streak = 0
+            lose_streak = 0
             
             for group_id in list(allowed_groups):
                 safe_send(group_id, bot.send_message, f"🔄 **Hết bài đổi bàn...** Bàn {ban_cu} hết bài, hệ thống chuyển sang bàn mới!", parse_mode="Markdown")
@@ -536,7 +706,7 @@ def chay_ca_danh(ca_time):
                 gui_anh_hoac_video(group_id, GIF_2_CHO_LENH, f"⏳ **SẴN SÀNG TAY SAU VÀO LỆNH (Bàn {ban})**")
             
             data_ban_moi = fetch_api(ban)
-            so_van_cu = len(data_ban_moi.get('results', [])) if data_ban_moi else 0
+            so_van_cu = len(data_ban_moi.get('results', '')) if data_ban_moi else 0
             ket_qua_hien_tai = wait_for_new_result(ban, so_van_cu, 50)
             if ket_qua_hien_tai: so_van_cu = len(ket_qua_hien_tai)
             continue 
@@ -553,6 +723,8 @@ def chay_ca_danh(ca_time):
                 
         elif actual_result == predicted_side:
             tong_lai += ty_le_hien_tai
+            win_streak += 1
+            lose_streak = 0
             str_tong_lai = f"+{tong_lai}" if tong_lai >= 0 else f"{tong_lai}"
             msg_ketqua = f"💰 **H{str_tong_lai}%**"
             for group_id in list(allowed_groups):
@@ -561,11 +733,30 @@ def chay_ca_danh(ca_time):
                     
         else:
             tong_lai -= ty_le_hien_tai
+            lose_streak += 1
+            win_streak = 0
             str_tong_lai = f"+{tong_lai}" if tong_lai >= 0 else f"{tong_lai}"
             msg_ketqua = f"❌ **G{str_tong_lai}%**"
             for group_id in list(allowed_groups):
                 if not gui_media_local_co_caption(group_id, VID_LOSE_HAND, msg_ketqua):
                     safe_send(group_id, bot.send_message, msg_ketqua, parse_mode="Markdown")
+                    
+            # CƠ CHẾ ĐỔI BÀN KHI BÀN BẺ CẦU: Nếu gãy 2 tay liên tiếp hoặc AI tụt độ tự tin < 45% -> Đổi sang bàn đang thông ngay!
+            _, new_conf, _ = evaluate_table_ai(ket_qua_hien_tai)
+            if (lose_streak >= 2 or new_conf < 0.45) and tong_lai > muc_tieu_lo:
+                ban_cu = ban
+                excluded_tables.add(str(ban_cu))
+                ban = chon_ban_thong_minh(excluded_tables)
+                bot_state["selected_table"] = ban
+                win_streak = 0
+                for group_id in list(allowed_groups):
+                    safe_send(group_id, bot.send_message, f"⚠️ **Bàn {ban_cu} đổi nhịp cầu!** Hệ thống lập tức chuyển sang bàn **{ban}** (Cầu đang thông)!", parse_mode="Markdown")
+                    gui_anh_hoac_video(group_id, GIF_2_CHO_LENH, f"⏳ **SẴN SÀNG TAY SAU VÀO LỆNH (Bàn {ban})**")
+                data_ban_moi = fetch_api(ban)
+                so_van_cu = len(data_ban_moi.get('results', '')) if data_ban_moi else 0
+                ket_qua_hien_tai = wait_for_new_result(ban, so_van_cu, 50)
+                if ket_qua_hien_tai: so_van_cu = len(ket_qua_hien_tai)
+                continue
                     
         smart_sleep(2)
 
@@ -621,5 +812,5 @@ if __name__ == "__main__":
     threading.Thread(target=self_ping, daemon=True).start()
     threading.Thread(target=ai_continuous_learning, daemon=True).start()
     threading.Thread(target=run_scheduler, daemon=True).start()
-    print("✅ Hệ thống BOT Đã Sẵn Sàng!")
-    bot.infinity_polling() 
+    print("✅ Hệ thống BOT Đã Sẵn Sàng (Multi-AI Engine v5)!")
+    bot.infinity_permissions_polling() if hasattr(bot, 'infinity_permissions_polling') else bot.infinity_polling()

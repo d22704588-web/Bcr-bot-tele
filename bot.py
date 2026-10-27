@@ -7,7 +7,7 @@ import schedule
 import sqlite3
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from flask import Flask
 
 # ================= ĐỒNG BỘ MÚI GIỜ VIỆT NAM =================
@@ -46,7 +46,7 @@ GIF_2_CHO_LENH = "CgACAgUAAxkBAANvat8dTA2D3ywvFv5WxCpZDXR0_kQAAnwpAAKyGElWlZ98ds
 GIF_3_CHOT_LAI = "CgACAgUAAxkBAANxat8dUNqmcTp81-Zh310m6zRYAbMAAmQiAAINmwlX9emEg5t-DCk9BA"  
 GIF_4_CHOT_LO  = "CgACAgUAAxkBAANzat8dVEVTP8Bhs4XfBFugoWQUr3QAAgofAAJGrslXZjvL-_oDlx09BA"  
 
-# CHỈNH LẠI ĐUÔI ẢNH THÀNH .png THEO FILE CỦA BẠN
+# ẢNH BẢNG THỐNG KÊ (ĐẢM BẢO BẠN ĐÃ TẢI FILE NÀY LÊN CÙNG THƯ MỤC CODE)
 IMG_BANG_VON = "bang_thong_ke.png"
 
 bot = telebot.TeleBot(BOT_TOKEN)
@@ -131,7 +131,8 @@ def remove_group_db(chat_id):
 allowed_groups = load_groups()
 
 def get_daily_report():
-    now = datetime.utcnow() + timedelta(hours=7)
+    # Đã cập nhật chuẩn thời gian mới không bị cảnh báo
+    now = datetime.now(timezone.utc) + timedelta(hours=7)
     today_str = now.strftime("%d-%m-%Y")
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -147,7 +148,7 @@ def get_daily_report():
     return {"date": today_str, "shifts": shifts, "total": total}
 
 def save_shift_result(shift, result_str):
-    now = datetime.utcnow() + timedelta(hours=7)
+    now = datetime.now(timezone.utc) + timedelta(hours=7)
     today_str = now.strftime("%d-%m-%Y")
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -179,8 +180,7 @@ def safe_send(group_id, send_func, *args, **kwargs):
                 allowed_groups.remove(group_id)
                 remove_group_db(group_id)
         return None
-    except Exception as e: 
-        return None
+    except Exception: return None
 
 def gui_anh_hoac_video(group_id, file_id, caption):
     if not file_id: 
@@ -262,7 +262,7 @@ def chon_ban_thong_minh():
             if not best_table: best_table = list(data.keys())[0]
     return best_table
 
-# ================= 5. MENU =================
+# ================= 5. MENU & LỆNH THỦ CÔNG =================
 bot.set_my_commands([
     BotCommand("/menu", "Mở Bảng Điều Khiển VIP"),
     BotCommand("/ca", "Chia lịch đánh nhanh"),
@@ -278,7 +278,8 @@ def show_menu(message):
     gio_ca = ", ".join(bot_settings['CA_HOAT_DONG'])
     trang_thai = "🟢 ĐANG CHẠY" if bot_state["is_running"] else "💤 ĐANG NGHỈ"
     
-    server_time = (datetime.utcnow() + timedelta(hours=7)).strftime("%H:%M:%S")
+    now = datetime.now(timezone.utc) + timedelta(hours=7)
+    server_time = now.strftime("%H:%M:%S")
     
     text = (
         "👑 **TRUNG TÂM ĐIỀU KHIỂN AUTO SIGNAL** 👑\n\n"
@@ -315,7 +316,7 @@ def handle_query(call):
         msg = bot.send_message(chat_id, "👉 Gõ số % đi **MỖI LỆNH** (VD: 5):", reply_markup=ForceReply())
         bot.register_next_step_handler(msg, step_set_val, 'TY_LE_VAO')
     elif call.data == "btn_ca":
-        msg = bot.send_message(chat_id, "👉 **CÀI ĐẶT CA NHANH 1 DÒNG**\nVD: `12:00 22:00 60`", parse_mode="Markdown", reply_markup=ForceReply())
+        msg = bot.send_message(chat_id, "👉 **CÀI ĐẶT CA NHANH 1 DÒNG**\nVD: `12:00 22:00 60`\n(Bạn cũng có thể gõ trực tiếp lệnh `/ca 12:00 22:00 60` bất cứ lúc nào)", parse_mode="Markdown", reply_markup=ForceReply())
         bot.register_next_step_handler(msg, step_ca_all_in_one)
     elif call.data == "btn_test":
         if not allowed_groups: bot.send_message(chat_id, "⚠️ Chưa có nhóm. Gõ `/setgroup`.")
@@ -326,7 +327,7 @@ def handle_query(call):
     elif call.data == "btn_reset":
         bot_state["is_running"] = False
         bot_state["force_stop"] = False
-        bot.send_message(chat_id, "✅ Đã Reset trạng thái thành công. Chờ ca tiếp theo hoặc chạy test lại!")
+        bot.send_message(chat_id, "✅ Đã Reset trạng thái thành công. Ca tiếp theo sẽ chạy tự động!")
         show_menu(call.message)
 
 def step_set_val(message, key):
@@ -339,29 +340,59 @@ def step_set_val(message, key):
         show_menu(message)
     except: bot.reply_to(message, "⚠️ Lỗi: Chỉ gõ số.")
 
-def step_ca_all_in_one(message):
+def parse_and_set_schedule(text, message):
+    parts = text.replace('  ', ' ').strip().split()
+    if len(parts) != 3:
+        bot.reply_to(message, "⚠️ Lỗi: Nhập sai cú pháp.\nVD chuẩn: `12:00 22:00 60`", parse_mode="Markdown")
+        return
     try:
-        parts = message.text.strip().split()
         t_start = datetime.strptime(parts[0], "%H:%M")
         t_end = datetime.strptime(parts[1], "%H:%M")
+        interval = int(parts[2])
         if t_end < t_start: t_end += timedelta(days=1)
+        
         new_ca = []
         while t_start <= t_end:
             new_ca.append(t_start.strftime("%H:%M"))
-            t_start += timedelta(minutes=int(parts[2]))
+            t_start += timedelta(minutes=interval)
+            
         bot_settings['CA_HOAT_DONG'] = new_ca
         save_bot_settings()
         reload_schedule()
-        bot.reply_to(message, f"✅ Đã chia xong {len(new_ca)} ca.")
+        bot.reply_to(message, f"✅ Đã chia thành công {len(new_ca)} ca tự động.")
         show_menu(message)
-    except: bot.reply_to(message, "⚠️ Sai định dạng.")
+    except Exception as e:
+        bot.reply_to(message, f"⚠️ Sai định dạng thời gian.\nVD chuẩn: `12:00 22:00 60`", parse_mode="Markdown")
+
+def step_ca_all_in_one(message):
+    parse_and_set_schedule(message.text, message)
+
+@bot.message_handler(commands=['ca'])
+def cmd_ca_fast(message):
+    if message.from_user.id != ADMIN_ID: return
+    content = message.text.replace('/ca', '').strip()
+    if not content:
+        bot.reply_to(message, "👉 Cú pháp chia ca nhanh:\n`/ca [Giờ_bắt_đầu] [Giờ_kết_thúc] [Khoảng_cách_phút]`\nVí dụ: `/ca 12:00 22:00 60`", parse_mode="Markdown")
+        return
+    parse_and_set_schedule(content, message)
 
 @bot.message_handler(commands=['setgroup'])
 def allow_group(message):
     if message.from_user.id != ADMIN_ID: return
     allowed_groups.add(message.chat.id)
     add_group_db(message.chat.id)
-    bot.reply_to(message, "✅ Đã lưu nhóm.")
+    bot.reply_to(message, "✅ Đã lưu nhóm báo lệnh.")
+
+@bot.message_handler(commands=['test_lenca'])
+def cmd_test_lenca(message):
+    if message.from_user.id != ADMIN_ID: return
+    if not allowed_groups: 
+        bot.reply_to(message, "⚠️ Chưa set nhóm (Gõ `/setgroup`)")
+    elif bot_state["is_running"]: 
+        bot.reply_to(message, "⚠️ Bot đang chạy ca! Bấm Reset trong Menu nếu kẹt.")
+    else: 
+        bot.reply_to(message, "🚀 Đang lên ca Test...")
+        threading.Thread(target=chay_ca_danh, args=("TEST",)).start()
 
 @bot.message_handler(commands=['dungbot'])
 def cmd_dungbot(message):
@@ -386,7 +417,9 @@ def wait_for_new_result(table_id, current_len, timeout=50):
     return None
 
 def chay_ca_danh(ca_time):
-    if not allowed_groups or bot_state["is_running"]: return 
+    if not allowed_groups: return 
+    if bot_state["is_running"]: return
+        
     bot_state["is_running"] = True
     bot_state["force_stop"] = False
 
@@ -415,13 +448,12 @@ def chay_ca_danh(ca_time):
     else: ket_qua_hien_tai = data_ban.get('results', [])
 
     while muc_tieu_lo < tong_lai < muc_tieu_lai and not bot_state["force_stop"]:
-        
         predicted_side = du_doan_thuat_toan(ket_qua_hien_tai)
         
         if predicted_side == 'P':
-            msg_lenh = f"✅ 🔵 **CON {ty_le}%**"
+            msg_lenh = f"👉 🔵 **CON {ty_le}%**"
         else:
-            msg_lenh = f"☑️ 🔴 **CÁI {ty_le}%**"
+            msg_lenh = f"👉 🔴 **CÁI {ty_le}%**"
             
         for group_id in list(allowed_groups):
             safe_send(group_id, bot.send_message, msg_lenh, parse_mode="Markdown")
@@ -494,26 +526,28 @@ def goto_chot_ca(tong_lai, ca_time, muc_tieu_lai, muc_tieu_lo):
     bot_state["is_running"] = False
     bot_state["force_stop"] = False
 
-# ================= 7. KHỞI CHẠY =================
+# ================= 7. LUỒNG ĐẾM GIỜ LÊN CA =================
 def get_current_time_str():
-    now = datetime.utcnow() + timedelta(hours=7)
+    now = datetime.now(timezone.utc) + timedelta(hours=7)
     return now.strftime("%H:%M")
 
 def run_scheduler():
-    reload_schedule()
+    last_run_time = ""
     while True:
         current_time = get_current_time_str()
-        if not bot_state["is_running"]:
-            for ca_time in bot_settings['CA_HOAT_DONG']:
-                if ca_time == current_time:
-                    threading.Thread(target=chay_ca_danh, args=(ca_time,)).start()
-                    time.sleep(60) 
-        time.sleep(5)
+        
+        if current_time != last_run_time:
+            if current_time in bot_settings.get('CA_HOAT_DONG', []):
+                last_run_time = current_time 
+                if not bot_state["is_running"]:
+                    threading.Thread(target=chay_ca_danh, args=(current_time,)).start()
+        time.sleep(1) 
 
 if __name__ == "__main__":
     threading.Thread(target=run_web, daemon=True).start()
     threading.Thread(target=self_ping, daemon=True).start()
     threading.Thread(target=ai_continuous_learning, daemon=True).start()
     threading.Thread(target=run_scheduler, daemon=True).start()
-    print("✅ Đã cập nhật ảnh PNG!")
+    print("✅ Đã fix cảnh báo hệ thống!")
     bot.infinity_polling()
+       

@@ -483,10 +483,10 @@ def chay_ca_danh(ca_time):
     bot_state["selected_table"] = ban
     
     for group_id in list(allowed_groups):
-        safe_send(group_id, bot.send_message, f"🎰 **BÁO BÀN MỚI:** Chuyển sang bàn chuẩn **{ban}**", parse_mode="Markdown")
-                gui_anh_hoac_video(group_id, GIF_2_CHO_LENH, f"⏳ **SẴN SÀNG TAY SAU VÀO LỆNH (Bàn {ban})**")
-            
-            data_ban_moi = fetch_api(ban)
+        safe_send(group_id, bot.send_message, f"🎰 **BÁO BÀN MỚI:** Chọn bàn chuẩn **{ban}**", parse_mode="Markdown")
+        gui_anh_hoac_video(group_id, GIF_2_CHO_LENH, f"⏳ **SẴN SÀNG TAY SAU VÀO LỆNH (Bàn {ban})**")
+
+    data_ban_moi = fetch_api(ban)
             so_van_cu = len(data_ban_moi.get('results', [])) if data_ban_moi else 0
             ket_qua_hien_tai = wait_for_new_result(ban, so_van_cu, 50)
             if ket_qua_hien_tai: so_van_cu = len(ket_qua_hien_tai)

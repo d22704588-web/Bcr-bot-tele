@@ -45,7 +45,10 @@ GIF_2_CHO_LENH = "CgACAgUAAxkBAANvat8dTA2D3ywvFv5WxCpZDXR0_kQAAnwpAAKyGElWlZ98ds
 GIF_3_CHOT_LAI = "CgACAgUAAxkBAANxat8dUNqmcTp81-Zh310m6zRYAbMAAmQiAAINmwlX9emEg5t-DCk9BA"  
 GIF_4_CHOT_LO  = "CgACAgUAAxkBAANzat8dVEVTP8Bhs4XfBFugoWQUr3QAAgofAAJGrslXZjvL-_oDlx09BA"  
 
-IMG_BANG_VON = "bang_thong_ke.png"
+# MEDIA GIAO DIỆN (UP FILE VÀO CÙNG THƯ MỤC TRÊN GITHUB)
+IMG_BANG_VON  = "bang_thong_ke.png"
+VID_WIN_HAND  = "win_hand.mp4"   # Đổi thành win_hand.gif nếu dùng ảnh động
+VID_LOSE_HAND = "lose_hand.mp4"  # Đổi thành lose_hand.gif nếu dùng ảnh động
 
 bot = telebot.TeleBot(BOT_TOKEN)
 DB_FILE = "baccarat_bot.db"
@@ -160,11 +163,7 @@ def create_board_msg():
     msg += f"🗓 **{date_str}**\n"
     ca_list = bot_settings['CA_HOAT_DONG']
     for i, ca in enumerate(ca_list, 1):
-        # HIỂN THỊ CHUẨN GIỜ LẺ 12H30
-        hour_str = ca.replace(":", "H")
-        if hour_str.endswith("H00"):
-            hour_str = hour_str.replace("H00", "H")
-        
+        hour_str = ca.split(":")[0] + "H" if ":00" in ca else ca.replace(":", "H")
         if ca in report["shifts"]: msg += f"💸 {hour_str} CA {i} : {report['shifts'][ca]}\n"
         else: msg += f"💸 {hour_str} CA {i} : \n"
     msg += f"\n➡️ **TỔNG LÃI : {report['total']}%** 💲\n\n📞 **THÔNG TIN LIÊN HỆ:**\n{LIEN_HE}"
@@ -455,7 +454,52 @@ def chay_ca_danh(ca_time):
         if ban in ai_memory:
             mem = ai_memory[ban]
             total_played = mem["wins"] + mem["losses"]
-            # Nếu bot đã ghi nhớ >= 3 ván ở bàn này và Tỉ lệ thắng >= 60%
+            if total_played >= 3 and (mem["wins"] / total_played) >= 0.6:
+                cau_dep = True
+                
+        if cau_dep:
+            ty_le_hien_tai = ty_le_goc * 2 
+        else:
+            ty_le_hien_tai = ty_le_goc
+        
+        if predicted_side == 'P':
+            msg_lenh = f"👉 🔵 **CON {ty_le_hien_tai}%**"
+        else:
+            msg_lenh = f"👉 🔴 **CÁI {ty_le_hien_tai}%**"
+            
+        if cau_dep:
+            msg_lenh += " 🔥" 
+            
+        for group_id in list(allowed_groups):
+            safe_send(group_id, bot.send_message, msg_lenh, parse_mode="Markdown")
+
+        ket_qua_moi = wait_for_new_result(ban, so_van_cu, 50)
+        if bot_state["force_stop"]: break
+
+        if not ket_qua_moi:
+            for group_id in list(allowed_groups):
+                safe_send(group_id, bot.send_message, f"🔄 **Hết bài đổi bàn...** Bàn {ban} đang xáo bài, hệ thống chuyển bàn mới!", parse_mode="Markdown")
+            ban = chon_ban_thong_minh()
+            for group_id in list(allowed_groups):
+                safe_send(group_id, bot.send_message, f"🎰 **BÁO BÀN MỚI:** Chuyển sang bàn chuẩn **{ban}**", parse_mode="Markdown")
+                gui_anh_hoac_video(group_id, GIF_2_CHO_LENH, f"⏳ **SẴN SÀNG TAY SAU VÀO LỆNH (Bàn {ban})**")
+
+    data_ban = fetch_api(ban)
+    if not data_ban: return goto_chot_ca(tong_lai, ca_time, muc_tieu_lai, muc_tieu_lo)
+    so_van_cu = len(data_ban.get('results', []))
+
+    ket_qua_hien_tai = wait_for_new_result(ban, so_van_cu, 50)
+    if ket_qua_hien_tai: so_van_cu = len(ket_qua_hien_tai)
+    else: ket_qua_hien_tai = data_ban.get('results', [])
+
+    while muc_tieu_lo < tong_lai < muc_tieu_lai and not bot_state["force_stop"]:
+        predicted_side = du_doan_thuat_toan(ket_qua_hien_tai)
+        
+        # LOGIC AI ĐỌC VỊ BÀN ĐỂ X2 VỐN
+        cau_dep = False
+        if ban in ai_memory:
+            mem = ai_memory[ban]
+            total_played = mem["wins"] + mem["losses"]
             if total_played >= 3 and (mem["wins"] / total_played) >= 0.6:
                 cau_dep = True
                 
@@ -496,21 +540,37 @@ def chay_ca_danh(ca_time):
         so_van_cu = len(ket_qua_moi)
         ket_qua_hien_tai = ket_qua_moi 
 
+        # XỬ LÝ KẾT QUẢ VÀ TỰ ĐỘNG NÉM MEDIA NẾU CÓ
         if actual_result == 'T':
             str_tong_lai = f"+{tong_lai}" if tong_lai >= 0 else f"{tong_lai}"
             msg_ketqua = f"⚖️ **HÒA {str_tong_lai}%**"
+            for group_id in list(allowed_groups):
+                safe_send(group_id, bot.send_message, msg_ketqua, parse_mode="Markdown")
+                
         elif actual_result == predicted_side:
             tong_lai += ty_le_hien_tai
             str_tong_lai = f"+{tong_lai}" if tong_lai >= 0 else f"{tong_lai}"
             msg_ketqua = f"💰 **H{str_tong_lai}%**"
+            for group_id in list(allowed_groups):
+                safe_send(group_id, bot.send_message, msg_ketqua, parse_mode="Markdown")
+                try:
+                    with open(VID_WIN_HAND, 'rb') as vid:
+                        safe_send(group_id, bot.send_animation, vid)
+                except Exception:
+                    pass
+                    
         else:
             tong_lai -= ty_le_hien_tai
-            # CHỈNH G+0% KHI HÒA VỐN
             str_tong_lai = f"+{tong_lai}" if tong_lai >= 0 else f"{tong_lai}"
             msg_ketqua = f"❌ **G{str_tong_lai}%**"
-        
-        for group_id in list(allowed_groups):
-            safe_send(group_id, bot.send_message, msg_ketqua, parse_mode="Markdown")
+            for group_id in list(allowed_groups):
+                safe_send(group_id, bot.send_message, msg_ketqua, parse_mode="Markdown")
+                try:
+                    with open(VID_LOSE_HAND, 'rb') as vid:
+                        safe_send(group_id, bot.send_animation, vid)
+                except Exception:
+                    pass
+                    
         smart_sleep(2)
 
     goto_chot_ca(tong_lai, ca_time, muc_tieu_lai, muc_tieu_lo)
@@ -540,7 +600,6 @@ def goto_chot_ca(tong_lai, ca_time, muc_tieu_lai, muc_tieu_lo):
                 safe_send(group_id, bot.send_photo, photo, caption=board_msg, parse_mode="Markdown")
         except Exception:
             safe_send(group_id, bot.send_message, board_msg, parse_mode="Markdown")
-            safe_send(ADMIN_ID, bot.send_message, f"⚠️ LỖI ẢNH: Không tìm thấy file '{IMG_BANG_VON}'. Hãy đảm bảo bạn đã tải ảnh lên!")
     
     bot_state["is_running"] = False
     bot_state["force_stop"] = False
@@ -567,5 +626,7 @@ if __name__ == "__main__":
     threading.Thread(target=self_ping, daemon=True).start()
     threading.Thread(target=ai_continuous_learning, daemon=True).start()
     threading.Thread(target=run_scheduler, daemon=True).start()
-    print("✅ Hệ thống Đã Nâng Cấp Logic G+0% và AI Đọc Vị Thực Tế!")
-    bot.infinity_polling()
+    print("✅ Hệ thống BOT Đã Sẵn Sàng!")
+    bot.infinity_polling() 
+
+      
